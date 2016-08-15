@@ -1995,7 +1995,7 @@ $(function () {
     Store.set('startAtUserLocation', this.checked)
   })
 
-  if ( $( "#nav-accordion" ).length ) {
+  if ($('#nav-accordion').length) {
     $('#nav-accordion').accordion({
       active: 0,
       collapsible: true,
