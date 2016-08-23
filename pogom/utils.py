@@ -52,6 +52,8 @@ def get_args():
                         help='Usernames, one per account.')
     parser.add_argument('-p', '--password', action='append',
                         help='Passwords, either single one for all accounts or one per account.')
+    parser.add_argument('-mw', '--max-workers', type=int,
+                        help='Maximum search worker threads to start. Defaults to the number of accounts specified.')
     parser.add_argument('-l', '--location', type=parse_unicode,
                         help='Location, can be an address or coordinates')
     parser.add_argument('-j', '--jitter', help='Apply random -9m to +9m jitter to location',
@@ -219,6 +221,10 @@ def get_args():
         # Make the accounts list
         for i, username in enumerate(args.username):
             args.accounts.append({'username': username, 'password': args.password[i], 'auth_service': args.auth_service[i]})
+
+        # Make max workers equal number of accounts if unspecified
+        if (args.max_workers is None):
+            args.max_workers = len(args.accounts)
 
     return args
 
