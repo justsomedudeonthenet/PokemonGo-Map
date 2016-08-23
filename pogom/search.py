@@ -87,7 +87,7 @@ def switch_status_printer(display_enabled, current_page):
 
 
 # Thread to print out the status of each worker
-def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue):
+def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue, account_queue):
     display_enabled = [True]
     current_page = [1]
 
@@ -119,7 +119,7 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue)
                     skip_total += threadStatus[item]['skip']
 
             # Print the queue length
-            status_text.append('Queues: {} search items, {} db updates, {} webhook.  Total skipped items: {}'.format(search_items_queue.qsize(), db_updates_queue.qsize(), wh_queue.qsize(), skip_total))
+            status_text.append('Queues: {} search items, {} db updates, {} webhook.  Total skipped items: {}. Spare accounts available: {}'.format(search_items_queue.qsize(), db_updates_queue.qsize(), wh_queue.qsize(), skip_total, account_queue.qsize()))
 
             # Print status of overseer
             status_text.append('{} Overseer: {}'.format(threadStatus['Overseer']['method'], threadStatus['Overseer']['message']))
@@ -175,6 +175,7 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
     log.info('Search overseer starting')
 
     search_items_queue = Queue()
+    account_queue = Queue()
     threadStatus = {}
 
     threadStatus['Overseer'] = {
@@ -187,14 +188,18 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
         log.info('Starting status printer thread')
         t = Thread(target=status_printer,
                    name='status_printer',
-                   args=(threadStatus, search_items_queue, db_updates_queue, wh_queue))
+                   args=(threadStatus, search_items_queue, db_updates_queue, wh_queue, account_queue))
         t.daemon = True
         t.start()
 
-    # Create a search_worker_thread per account
-    log.info('Starting search worker threads')
+    # Create a queue of accounts for workers to pull from
     for i, account in enumerate(args.accounts):
-        log.debug('Starting search worker thread %d for user %s', i, account['username'])
+        account_queue.put(account)
+
+    # Create specified number of search_worker_thread
+    log.info('Starting search worker threads')
+    for i in range(0, args.max_workers - 1):
+        log.debug('Starting search worker thread %d', i)
         workerId = 'Worker {:03}'.format(i)
         threadStatus[workerId] = {
             'type': 'Worker',
@@ -203,12 +208,12 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
             'fail': 0,
             'noitems': 0,
             'skip': 0,
-            'user': account['username']
+            'user': '' 
         }
 
         t = Thread(target=search_worker_thread,
                    name='search-worker-{}'.format(i),
-                   args=(args, account, search_items_queue, pause_bit,
+                   args=(args, account_queue, search_items_queue, pause_bit,
                          encryption_lib_path, threadStatus[workerId],
                          db_updates_queue, wh_queue))
         t.daemon = True
@@ -416,15 +421,26 @@ def get_sps_location_list(args, current_location, sps_scan_current):
     return retset
 
 
-def search_worker_thread(args, account, search_items_queue, pause_bit, encryption_lib_path, status, dbq, whq):
+def search_worker_thread(args, account_queue, search_items_queue, pause_bit, encryption_lib_path, status, dbq, whq):
 
-    stagger_thread(args, account)
 
     log.debug('Search worker thread starting')
 
-    # The forever loop for the thread
+    # The outer forever loop restarts only when the inner one is intentionally exited - which should only be done when the worker is failing too often, and probably banned.
+    # This reinitializes the API and grabs a new account from the queue.
     while True:
         try:
+            # Get account
+            status['message'] = 'Trying to get new account from the queue'
+            log.info(status['message'])
+            account = account_queue.get()
+            status['message'] = 'Switching to account {}'.format(account['username'])
+            status['user'] = account['username'] 
+            log.info(status['message'])
+
+
+            stagger_thread(args, account)
+
             # New lease of life right here
             status['fail'] = 0
             status['success'] = 0
@@ -449,6 +465,7 @@ def search_worker_thread(args, account, search_items_queue, pause_bit, encryptio
                 if status['fail'] >= args.max_failures:
                     end_sleep = now() + (3600 * 2)
                     long_sleep_started = time.strftime('%H:%M:%S')
+                    break
                     while now() < end_sleep:
                         status['message'] = 'Worker {} failed more than {} scans; possibly banned account. Sleeping for 2 hour sleep as of {}'.format(account['username'], args.max_failures, long_sleep_started)
                         log.error(status['message'])
