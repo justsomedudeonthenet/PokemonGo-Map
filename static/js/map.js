@@ -1143,6 +1143,27 @@ function pokestopLabel (expireTime, latitude, longitude) {
   return str
 }
 
+function formatSpawnTime(seconds) {
+  return ("0" + Math.floor(((seconds + 3600) % 3600) / 60)).substr(-2) + ":" + ("0" + seconds % 60).substr(-2)
+}
+function spawnpointLabel(item) {
+  var str = `
+    <div>
+      <b>Spawn Point</b>
+    </div>
+    <div>
+      Every hour from ${formatSpawnTime(item.time)} to ${formatSpawnTime(item.time + 900)}
+    </div>`
+
+    if (item.special) {
+      str += `
+        <div>
+          May appear as early as ${formatSpawnTime(item.time-1800)}
+        </div>`
+    }
+    return str
+}
+
 function getGoogleSprite (index, sprite, displayHeight) {
   displayHeight = Math.max(displayHeight, 3)
   var scale = displayHeight / sprite.iconHeight
@@ -1291,12 +1312,19 @@ function setupSpawnpointMarker (item) {
 
   var marker = new google.maps.Circle({
     map: map,
-    clickable: false,
     center: circleCenter,
     radius: 5, // metres
     fillColor: 'blue',
     strokeWeight: 1
   })
+
+  marker.infoWindow = new google.maps.InfoWindow({
+    content: spawnpointLabel(item),
+    disableAutoPan: true,
+    position: circleCenter
+  })
+
+  addListeners(marker)
 
   return marker
 }
