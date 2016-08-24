@@ -1143,10 +1143,10 @@ function pokestopLabel (expireTime, latitude, longitude) {
   return str
 }
 
-function formatSpawnTime(seconds) {
-  return ("0" + Math.floor(((seconds + 3600) % 3600) / 60)).substr(-2) + ":" + ("0" + seconds % 60).substr(-2)
+function formatSpawnTime (seconds) {
+  return ('0' + Math.floor(((seconds + 3600) % 3600) / 60)).substr(-2) + ':' + ('0' + seconds % 60).substr(-2)
 }
-function spawnpointLabel(item) {
+function spawnpointLabel (item) {
   var str = `
     <div>
       <b>Spawn Point</b>
@@ -1155,13 +1155,13 @@ function spawnpointLabel(item) {
       Every hour from ${formatSpawnTime(item.time)} to ${formatSpawnTime(item.time + 900)}
     </div>`
 
-    if (item.special) {
-      str += `
-        <div>
-          May appear as early as ${formatSpawnTime(item.time-1800)}
-        </div>`
-    }
-    return str
+  if (item.special) {
+    str += `
+      <div>
+        May appear as early as ${formatSpawnTime(item.time - 1800)}
+      </div>`
+  }
+  return str
 }
 
 function getGoogleSprite (index, sprite, displayHeight) {
