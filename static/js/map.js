@@ -1307,6 +1307,27 @@ function setupScannedMarker (item) {
   return marker
 }
 
+function getColorBySpawnTime (value) {
+  var now = new Date()
+  var seconds = now.getMinutes() * 60 + now.getSeconds()
+  
+  // account for hour roll-over
+  if (value + 900 > 3600) {
+    seconds += 3600
+  }
+  
+  var diff = (seconds - value)
+  var hue = 275 // purple when spawn is neither about to spawn nor active
+  
+  if (diff >= 0 && diff <= 900) { // green to red over 15 minutes of active spawn
+    hue = (1 - (diff / 60 / 15)) * 120
+  } else if (diff < 0 && diff > -300) { // light blue to dark blue over 5 minutes til spawn
+    hue = ((1 - (-diff / 60 / 5)) * 50) + 200
+  }
+
+  return ['hsl(', hue,',100%,50%)'].join('')
+}
+
 function setupSpawnpointMarker (item) {
   var circleCenter = new google.maps.LatLng(item['latitude'], item['longitude'])
 
@@ -1314,7 +1335,7 @@ function setupSpawnpointMarker (item) {
     map: map,
     center: circleCenter,
     radius: 5, // metres
-    fillColor: 'blue',
+    fillColor: getColorBySpawnTime(item.time),
     strokeWeight: 1
   })
 
@@ -1555,7 +1576,9 @@ function processSpawnpoints (i, item) {
   var id = item['spawnpoint_id']
 
   if (id in mapData.spawnpoints) {
-    // In the future: maybe show how long till spawnpoint activates?
+    mapData.spawnpoints[id].marker.setOptions({
+      fillColor: getColorBySpawnTime(item['time'])
+    })
   } else { // add marker to map and item to dict
     if (item.marker) {
       item.marker.setMap(null)
