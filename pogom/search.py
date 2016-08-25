@@ -192,13 +192,18 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
         t.daemon = True
         t.start()
 
-    # Create a queue of accounts for workers to pull from
+    '''
+    Create a queue of accounts for workers to pull from. When a worker has failed too many times,
+    it can get a new account from the queue and reinitialize the API. Workers should return accounts
+    to the queue so they can be tried again later, but must wait a bit before doing do so to
+    prevent accounts from being cycled through too quickly.
+    '''
     for i, account in enumerate(args.accounts):
         account_queue.put(account)
 
     # Create specified number of search_worker_thread
     log.info('Starting search worker threads')
-    for i in range(0, args.max_workers - 1):
+    for i in range(0, args.max_workers):
         log.debug('Starting search worker thread %d', i)
         workerId = 'Worker {:03}'.format(i)
         threadStatus[workerId] = {
@@ -208,7 +213,7 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
             'fail': 0,
             'noitems': 0,
             'skip': 0,
-            'user': '' 
+            'user': ''
         }
 
         t = Thread(target=search_worker_thread,
@@ -423,7 +428,6 @@ def get_sps_location_list(args, current_location, sps_scan_current):
 
 def search_worker_thread(args, account_queue, search_items_queue, pause_bit, encryption_lib_path, status, dbq, whq):
 
-
     log.debug('Search worker thread starting')
 
     # The outer forever loop restarts only when the inner one is intentionally exited - which should only be done when the worker is failing too often, and probably banned.
@@ -435,9 +439,8 @@ def search_worker_thread(args, account_queue, search_items_queue, pause_bit, enc
             log.info(status['message'])
             account = account_queue.get()
             status['message'] = 'Switching to account {}'.format(account['username'])
-            status['user'] = account['username'] 
+            status['user'] = account['username']
             log.info(status['message'])
-
 
             stagger_thread(args, account)
 
@@ -463,14 +466,15 @@ def search_worker_thread(args, account_queue, search_items_queue, pause_bit, enc
 
                 # If this account has been messing up too hard, let it rest
                 if status['fail'] >= args.max_failures:
-                    end_sleep = now() + (3600 * 2)
+                    end_sleep = now() + 900
                     long_sleep_started = time.strftime('%H:%M:%S')
-                    break
                     while now() < end_sleep:
-                        status['message'] = 'Worker {} failed more than {} scans; possibly banned account. Sleeping for 2 hour sleep as of {}'.format(account['username'], args.max_failures, long_sleep_started)
+                        status['message'] = 'Worker {} failed more than {} scans; possibly banned account. Sleeping for 15 minutes sleep as of {}'.format(account['username'], args.max_failures, long_sleep_started)
                         log.error(status['message'])
                         time.sleep(300)
-                    break  # exit this loop to have the API recreated
+                    log.warning('Returning possibly banned account {} to the queue to try again later.'.format(account['username']))
+                    account_queue.put(account)
+                    break  # exit this loop to get a new account and have the API recreated
 
                 while pause_bit.is_set():
                     status['message'] = 'Scanning paused'
@@ -532,8 +536,14 @@ def search_worker_thread(args, account_queue, search_items_queue, pause_bit, enc
                 try:
                     parsed = parse_map(args, response_dict, step_location, dbq, whq)
                     search_items_queue.task_done()
+<<<<<<< HEAD
                     status[('success' if parsed['count'] > 0 else 'noitems')] += 1
                     status['message'] = 'Search at {:6f},{:6f} completed with {} finds'.format(step_location[0], step_location[1], parsed['count'])
+=======
+                    status[('success' if findCount > 0 else 'noitems')] += 1
+                    status['fail'] = 0
+                    status['message'] = 'Search at {:6f},{:6f} completed with {} finds'.format(step_location[0], step_location[1], findCount)
+>>>>>>> Allow workers to get new accounts when banned
                     log.debug(status['message'])
                 except KeyError:
                     parsed = False
@@ -598,9 +608,15 @@ def search_worker_thread(args, account_queue, search_items_queue, pause_bit, enc
 
         # catch any process exceptions, log them, and continue the thread
         except Exception as e:
-            status['message'] = 'Exception in search_worker: {}'.format(e)
-            log.exception(status['message'])
-            time.sleep(args.scan_delay)
+            # After exception, worker should sleep 15 minutes and return it's account to the queue, since it will be getting a fresh account afterwards.
+            status['message'] = 'Exception in search_worker using account {}. Sleeping 15 minutes before getting fresh account. See logs for details.'.format(account['username'])
+            end_sleep = now() + 900
+            long_sleep_started = time.strftime('%H:%M:%S')
+            while now() < end_sleep:
+                log.error('Exception in search_worker under account {}. Sleeping 15 minutes: {}'.format(account['username'], e))
+                time.sleep(300)
+            log.warning('Returning account {} to the queue due to worker exception.'.format(account['username']))
+            account_queue.put(account)
 
 
 def check_login(args, account, api, position):
