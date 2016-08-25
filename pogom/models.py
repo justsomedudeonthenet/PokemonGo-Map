@@ -213,7 +213,7 @@ class Pokemon(BaseModel):
 
     @classmethod
     def get_spawnpoints(cls, southBoundary, westBoundary, northBoundary, eastBoundary):
-        query = Pokemon.select(Pokemon.latitude, Pokemon.longitude, Pokemon.spawnpoint_id, ((Pokemon.disappear_time.minute * 60) + Pokemon.disappear_time.second).alias('time'))
+        query = Pokemon.select(Pokemon.latitude, Pokemon.longitude, Pokemon.spawnpoint_id, ((Pokemon.disappear_time.minute * 60) + Pokemon.disappear_time.second).alias('time'), fn.Count(Pokemon.spawnpoint_id).alias('count'))
 
         if None not in (northBoundary, southBoundary, westBoundary, eastBoundary):
             query = (query
@@ -230,14 +230,20 @@ class Pokemon(BaseModel):
 
         for sp in queryDict:
             key = sp['spawnpoint_id']
+            disappear_time = cls.get_spawn_time(sp.pop('time'))
+            count = int(sp['count'])
 
             if key not in spawnpoints:
                 spawnpoints[key] = sp
             else:
                 spawnpoints[key]['special'] = True
 
-            if time not in spawnpoints[key] or sp['time'] > spawnpoints[key]['time']:
-                spawnpoints[key]['time'] = cls.get_spawn_time(sp['time'])
+            if 'time' not in spawnpoints[key] or count >= spawnpoints[key]['count']:
+                spawnpoints[key]['time'] = disappear_time
+                spawnpoints[key]['count'] = count
+
+        for sp in spawnpoints.values():
+            del sp['count']
 
         return list(spawnpoints.values())
 
