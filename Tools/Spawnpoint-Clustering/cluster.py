@@ -7,12 +7,26 @@ import utils
 
 class Spawnpoint(object):
     def __init__(self, data):
-        self.spawnpoint_id = data['spawnpoint_id']
+        # not needed but useful for debugging
+        self.spawnpoint_id = data.get('spawnpoint_id') or data.get('sid')
+        
         try:
             self.position = (float(data['latitude']), float(data['longitude']))
         except KeyError:
             self.position = (float(data['lat']), float(data['lng']))
+        
         self.time = data['time']
+        
+    def serialize(self):
+        obj = dict()
+
+        if self.spawnpoint_id != None:
+            obj['spawnpoint_id'] = self.spawnpoint_id
+        obj['latitude'] = self.position[0]
+        obj['longitude'] = self.position[1]
+        obj['time'] = self.time
+
+        return obj
         
 class Spawncluster(object):
     def __init__(self, spawnpoint):
@@ -81,7 +95,6 @@ def check_cluster(spawnpoint, cluster, radius, time_threshold):
         
     return True
     
-            
 def cluster(spawnpoints, radius, time_threshold):
   clusters = []
   diameter = 2 * radius
@@ -93,7 +106,6 @@ def cluster(spawnpoints, radius, time_threshold):
       c = min(clusters, key=lambda x: cost(p, x, time_threshold))
       
       if check_cluster(p, c, radius, time_threshold):
-      #if check_cluster_try(p, c, 2*radius, time_threshold):
         c.append(p)
       else:
         c = Spawncluster(p)
@@ -107,7 +119,7 @@ def test(cluster, radius, time_threshold):
     for p in cluster:
         assert utils.distance(p.position, cluster.centroid) <= radius
         assert cluster.min_time <= p.time <= cluster.max_time
-        
+
 def main(args):
     radius = args.radius
     time_threshold = args.time_threshold
@@ -140,9 +152,9 @@ def main(args):
         rows = []
         for c in clusters:
             row = dict()
-            row['spawnpoints'] = [x.__dict__ for x in c]
-            row['lat'] = c.centroid[0]
-            row['lng'] = c.centroid[1]
+            row['spawnpoints'] = [x.serialize() for x in c]
+            row['latitude'] = c.centroid[0]
+            row['longitude'] = c.centroid[1]
             row['min_time'] = c.min_time
             row['max_time'] = c.max_time
             rows.append(row)
@@ -156,9 +168,14 @@ def main(args):
             row = dict()
             # pick a random id from a clustered spawnpoint
             # we should probably not do this
-            row['spawnpoint_id'] = random.choice(c).spawnpoint_id
-            row['lat'] = c.centroid[0]
-            row['lng'] = c.centroid[1]
+            if args.long_keys:
+                row['spawnpoint_id'] = random.choice(c).spawnpoint_id
+                row['latitude'] = c.centroid[0]
+                row['longitude'] = c.centroid[1]
+            else:
+                row['sid'] = random.choice(c).spawnpoint_id
+                row['lat'] = c.centroid[0]
+                row['lng'] = c.centroid[1]
             # pick the latest time so earlier spawnpoints have already spawned
             row['time'] = c.max_time
             rows.append(row)
@@ -173,6 +190,7 @@ if __name__ == "__main__":
     parser.add_argument('-oc', '--output-clusters', help='The filename to write cluster data to.')
     parser.add_argument('-r', '--radius', type=float, help='Maximum radius (in meters) where spawnpoints are considered close (defaults to 70).', default=70)
     parser.add_argument('-t', '--time-threshold', type=float, help='Maximum time threshold (in seconds) to consider when clustering (defaults to 180).', default=180)
+    parser.add_argument('--long-keys', action='store_true', help='Uses prettier longer key names in the output spawnpoints.json.')
     
     args = parser.parse_args()
     
