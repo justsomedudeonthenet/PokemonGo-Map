@@ -106,7 +106,11 @@ class Pogom(Flask):
                     break
 
         if request.args.get('appearances', 'false') == 'true':
-            d['appearances'] = Pokemon.get_appearances(request.args.get('pokemonid'), request.args.get('last', type=float))
+            for duration in self.get_valid_stat_input()["duration"]["items"].values():
+                if duration["selected"] == "SELECTED":
+                    d['appearances'] = Pokemon.get_appearances(request.args.get('pokemonid'),
+                                                               request.args.get('last', type=float), duration["value"])
+                    break
 
         if request.args.get('spawnpoints', 'false') == 'true':
             d['spawnpoints'] = Pokemon.get_spawnpoints(swLat, swLng, neLat, neLng)

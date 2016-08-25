@@ -195,11 +195,14 @@ class Pokemon(BaseModel):
         return {'pokemon': pokemons, 'total': total}
 
     @classmethod
-    def get_appearances(cls, pokemon_id, last_appearance):
+    def get_appearances(cls, pokemon_id, last_appearance, timediff):
+        if timediff:
+            timediff = datetime.utcnow() - timediff
         query = (Pokemon
                  .select()
                  .where((Pokemon.pokemon_id == pokemon_id) &
-                        (Pokemon.disappear_time > datetime.utcfromtimestamp(last_appearance / 1000.0))
+                        (Pokemon.disappear_time > datetime.utcfromtimestamp(last_appearance / 1000.0)) &
+                        (Pokemon.disappear_time > timediff)
                         )
                  .order_by(Pokemon.disappear_time.asc())
                  .dicts()

@@ -208,7 +208,8 @@ function loadDetails () {
       'scanned': false,
       'appearances': true,
       'pokemonid': pokemonid,
-      'last': lastappearance
+      'last': lastappearance,
+      'duration': document.getElementById('duration').options[document.getElementById('duration').selectedIndex].value
     },
     dataType: 'json',
     beforeSend: function () {
