@@ -1345,10 +1345,9 @@ function getColorBySpawnTime (value) {
 
   // account for hour roll-over
   if (seconds < 900 && value > 2700) {
-      seconds += 3600
-  }
-  else if (seconds > 2700 && value < 900) { 
-    value += 3600 
+    seconds += 3600
+  } else if (seconds > 2700 && value < 900) {
+    value += 3600
   }
 
   var diff = (seconds - value)
