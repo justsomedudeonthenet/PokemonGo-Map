@@ -101,7 +101,7 @@ class Pogom(Flask):
 
         selected_duration = None
 
-        # statistic period for which appearances and seen pokemons are queried
+        # for stats and changed nest points etc, limit pokemon queried
         for duration in self.get_valid_stat_input()["duration"]["items"].values():
             if duration["selected"] == "SELECTED":
                 selected_duration = duration["value"]
