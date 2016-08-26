@@ -1312,7 +1312,7 @@ function getColorBySpawnTime (value) {
   var seconds = now.getMinutes() * 60 + now.getSeconds()
 
   // account for hour roll-over
-  if (value + 900 > 3600) {
+  if (seconds < value && value + 900 > 3600) {
     seconds += 3600
   }
 
