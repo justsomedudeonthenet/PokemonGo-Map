@@ -203,7 +203,7 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
 
     # Create specified number of search_worker_thread
     log.info('Starting search worker threads')
-    for i in range(0, args.max_workers):
+    for i in range(0, args.workers):
         log.debug('Starting search worker thread %d', i)
         workerId = 'Worker {:03}'.format(i)
         threadStatus[workerId] = {
