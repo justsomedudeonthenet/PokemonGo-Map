@@ -104,6 +104,7 @@ class Pogom(Flask):
         for duration in self.get_valid_stat_input()["duration"]["items"].values():
             if duration["selected"] == "SELECTED":
                 selected_duration = duration["value"]
+                break
 
         if request.args.get('seen', 'false') == 'true':
             d['seen'] = Pokemon.get_seen(selected_duration)
