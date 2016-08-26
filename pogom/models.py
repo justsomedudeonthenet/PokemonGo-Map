@@ -196,7 +196,12 @@ class Pokemon(BaseModel):
 
     @classmethod
     def get_appearances(cls, pokemon_id, last_appearance, timediff):
-        # period during which appearances are displayed
+        '''
+        :param pokemon_id: id of pokemon that should be
+        :param last_appearance: time of last appearance of pokemon after which we are getting appearances
+        :param timediff: limiting period of the selection
+        :return: list of  pokemon  appearances over a selected period
+        '''
         if timediff:
             timediff = datetime.utcnow() - timediff
         query = (Pokemon
