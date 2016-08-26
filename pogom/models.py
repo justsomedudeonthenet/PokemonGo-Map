@@ -196,6 +196,7 @@ class Pokemon(BaseModel):
 
     @classmethod
     def get_appearances(cls, pokemon_id, last_appearance, timediff):
+        # period during which appearances are displayed
         if timediff:
             timediff = datetime.utcnow() - timediff
         query = (Pokemon
