@@ -99,18 +99,18 @@ class Pogom(Flask):
             d['scanned'] = ScannedLocation.get_recent(swLat, swLng, neLat,
                                                       neLng)
 
+        selected_duration = None
+
+        for duration in self.get_valid_stat_input()["duration"]["items"].values():
+            if duration["selected"] == "SELECTED":
+                selected_duration = duration["value"]
+
         if request.args.get('seen', 'false') == 'true':
-            for duration in self.get_valid_stat_input()["duration"]["items"].values():
-                if duration["selected"] == "SELECTED":
-                    d['seen'] = Pokemon.get_seen(duration["value"])
-                    break
+            d['seen'] = Pokemon.get_seen(selected_duration)
 
         if request.args.get('appearances', 'false') == 'true':
-            for duration in self.get_valid_stat_input()["duration"]["items"].values():
-                if duration["selected"] == "SELECTED":
-                    d['appearances'] = Pokemon.get_appearances(request.args.get('pokemonid'),
-                                                               request.args.get('last', type=float), duration["value"])
-                    break
+            d['appearances'] = Pokemon.get_appearances(request.args.get('pokemonid'),
+                                                       request.args.get('last', type=float), selected_duration)
 
         if request.args.get('spawnpoints', 'false') == 'true':
             d['spawnpoints'] = Pokemon.get_spawnpoints(swLat, swLng, neLat, neLng)
