@@ -536,14 +536,9 @@ def search_worker_thread(args, account_queue, search_items_queue, pause_bit, enc
                 try:
                     parsed = parse_map(args, response_dict, step_location, dbq, whq)
                     search_items_queue.task_done()
-<<<<<<< HEAD
                     status[('success' if parsed['count'] > 0 else 'noitems')] += 1
                     status['message'] = 'Search at {:6f},{:6f} completed with {} finds'.format(step_location[0], step_location[1], parsed['count'])
-=======
-                    status[('success' if findCount > 0 else 'noitems')] += 1
                     status['fail'] = 0
-                    status['message'] = 'Search at {:6f},{:6f} completed with {} finds'.format(step_location[0], step_location[1], findCount)
->>>>>>> Allow workers to get new accounts when banned
                     log.debug(status['message'])
                 except KeyError:
                     parsed = False
