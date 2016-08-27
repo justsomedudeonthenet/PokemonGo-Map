@@ -2100,9 +2100,7 @@ $(function () {
     $selectRarityNotify.val(Store.get('remember_select_rarity_notify')).trigger('change')
 
     if (isTouchDevice()) {
-      $('select').each(function () {
-        $('.select2-search input').prop('readonly', true)
-      })
+      $('.select2-search input').prop('readonly', true)
     }
   })
 
