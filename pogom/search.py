@@ -326,7 +326,7 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
 
             threadStatus['Overseer']['message'] = 'Queuing steps'
             for step, step_location in enumerate(locations, 1):
-                #log.debug('Queueing step %d @ %f/%f/%f', step, step_location[0][0], step_location[0][1], step_location[0][2])
+                log.debug('Queueing step %d @ %f/%f/%f', step, step_location[0][0], step_location[0][1], step_location[0][2])
                 search_args = (step, step_location[0], step_location[1], step_location[2])
                 search_items_queue.put(search_args)
         else:
