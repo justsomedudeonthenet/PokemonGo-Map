@@ -2098,6 +2098,12 @@ $(function () {
     $selectExclude.val(Store.get('remember_select_exclude')).trigger('change')
     $selectPokemonNotify.val(Store.get('remember_select_notify')).trigger('change')
     $selectRarityNotify.val(Store.get('remember_select_rarity_notify')).trigger('change')
+
+    if (isTouchDevice()) {
+      $('select').each(function () {
+        $('.select2-search input').prop('readonly', true)
+      })
+    }
   })
 
   // run interval timers to regularly update map and timediffs
