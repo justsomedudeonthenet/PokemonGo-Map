@@ -432,7 +432,7 @@ def search_worker_thread(args, account, search_items_queue, pause_bit, encryptio
             status['skip'] = 0
 			
 			# only sleep when consecutive_fails reaches max_failures, overall fails for stat purposes
-			consecutive_fails = 0
+            consecutive_fails = 0
 
             # Create the API instance this will use
             if args.mock != '':
