@@ -87,7 +87,7 @@ def switch_status_printer(display_enabled, current_page):
 
 
 # Thread to print out the status of each worker
-def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue):
+def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue, account_queue, account_failures):
     display_enabled = [True]
     current_page = [1]
 
@@ -119,7 +119,7 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue)
                     skip_total += threadStatus[item]['skip']
 
             # Print the queue length
-            status_text.append('Queues: {} search items, {} db updates, {} webhook.  Total skipped items: {}'.format(search_items_queue.qsize(), db_updates_queue.qsize(), wh_queue.qsize(), skip_total))
+            status_text.append('Queues: {} search items, {} db updates, {} webhook.  Total skipped items: {}. Spare accounts available: {}. Accounts on hold: {}'.format(search_items_queue.qsize(), db_updates_queue.qsize(), wh_queue.qsize(), skip_total, account_queue.qsize(), len(account_failures)))
 
             # Print status of overseer
             status_text.append('{} Overseer: {}'.format(threadStatus['Overseer']['method'], threadStatus['Overseer']['message']))
@@ -160,7 +160,6 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue)
                         break
 
                     status_text.append(status.format(item, threadStatus[item]['user'], threadStatus[item]['success'], threadStatus[item]['fail'], threadStatus[item]['noitems'], threadStatus[item]['skip'], threadStatus[item]['message']))
-
             status_text.append('Page {}/{}.  Type page number and <ENTER> to switch pages.  Press <ENTER> alone to switch between status and log view'.format(current_page[0], total_pages))
             # Clear the screen
             os.system('cls' if os.name == 'nt' else 'clear')
@@ -169,13 +168,49 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue)
         time.sleep(1)
 
 
+# The account recycler monitors failed accounts and places them back in the account queue 2 hours after they failed.
+# This allows accounts that were soft banned to be retried after giving them a chance to cool down.
+def account_recycler(accounts_queue, account_failures):
+    while True:
+        # Only run every 10 minutes
+        time.sleep(10 * 60)
+        log.info('Account recycler running. Checking status of {} accounts'.format(len(account_failures)))
+
+        # Create a new copy of the failure list to search through, so we can iterate through it without it changing
+        failed_temp = list(account_failures)
+
+        # Search through the list for any item that last failed before 2 hours ago
+        ok_time = now() - (3600 * 2)
+        for a in failed_temp:
+            if a['last_fail_time'] <= ok_time:
+                # Remove the account from the real list, and add to the account queue
+                log.info('Account {} returning to active duty.'.format(a['account']['username']))
+                account_failures.remove(a)
+                accounts_queue.put(a['account'])
+            else:
+                log.info('Account {} needs to cool off for {} seconds'.format(a['account']['username'], a['last_fail_time'] - ok_time))
+
+
 # The main search loop that keeps an eye on the over all process
 def search_overseer_thread(args, method, new_location_queue, pause_bit, encryption_lib_path, db_updates_queue, wh_queue):
 
     log.info('Search overseer starting')
 
     search_items_queue = Queue()
+    account_queue = Queue()
     threadStatus = {}
+
+    '''
+    Create a queue of accounts for workers to pull from. When a worker has failed too many times,
+    it can get a new account from the queue and reinitialize the API. Workers should return accounts
+    to the queue so they can be tried again later, but must wait a bit before doing do so to
+    prevent accounts from being cycled through too quickly.
+    '''
+    for i, account in enumerate(args.accounts):
+        account_queue.put(account)
+
+    # Create a list for failed accounts
+    account_failures = []
 
     threadStatus['Overseer'] = {
         'message': 'Initializing',
@@ -187,14 +222,20 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
         log.info('Starting status printer thread')
         t = Thread(target=status_printer,
                    name='status_printer',
-                   args=(threadStatus, search_items_queue, db_updates_queue, wh_queue))
+                   args=(threadStatus, search_items_queue, db_updates_queue, wh_queue, account_queue, account_failures))
         t.daemon = True
         t.start()
 
-    # Create a search_worker_thread per account
+    # Create account recycler thread
+    log.info('Starting account recycler thread')
+    t = Thread(target=account_recycler, name='account-recycler', args=(account_queue, account_failures))
+    t.daemon = True
+    t.start()
+
+    # Create specified number of search_worker_thread
     log.info('Starting search worker threads')
-    for i, account in enumerate(args.accounts):
-        log.debug('Starting search worker thread %d for user %s', i, account['username'])
+    for i in range(0, args.workers):
+        log.debug('Starting search worker thread %d', i)
         workerId = 'Worker {:03}'.format(i)
         threadStatus[workerId] = {
             'type': 'Worker',
@@ -203,12 +244,12 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
             'fail': 0,
             'noitems': 0,
             'skip': 0,
-            'user': account['username']
+            'user': ''
         }
 
         t = Thread(target=search_worker_thread,
                    name='search-worker-{}'.format(i),
-                   args=(args, account, search_items_queue, pause_bit,
+                   args=(args, account_queue, account_failures, search_items_queue, pause_bit,
                          encryption_lib_path, threadStatus[workerId],
                          db_updates_queue, wh_queue))
         t.daemon = True
@@ -366,7 +407,7 @@ def get_sps_location_list(args, current_location, sps_scan_current):
 
     locations.sort(key=itemgetter('time'))
 
-    if args.verbose or args.very_verbose:
+    if args.very_verbose:
         for i in locations:
             sec = i['time'] % 60
             minute = (i['time'] / 60) % 60
@@ -416,15 +457,24 @@ def get_sps_location_list(args, current_location, sps_scan_current):
     return retset
 
 
-def search_worker_thread(args, account, search_items_queue, pause_bit, encryption_lib_path, status, dbq, whq):
-
-    stagger_thread(args, account)
+def search_worker_thread(args, account_queue, account_failures, search_items_queue, pause_bit, encryption_lib_path, status, dbq, whq):
 
     log.debug('Search worker thread starting')
 
-    # The forever loop for the thread
+    # The outer forever loop restarts only when the inner one is intentionally exited - which should only be done when the worker is failing too often, and probably banned.
+    # This reinitializes the API and grabs a new account from the queue.
     while True:
         try:
+            # Get account
+            status['message'] = 'Waiting to get new account from the queue'
+            log.info(status['message'])
+            account = account_queue.get()
+            status['message'] = 'Switching to account {}'.format(account['username'])
+            status['user'] = account['username']
+            log.info(status['message'])
+
+            stagger_thread(args, account)
+
             # New lease of life right here
             status['fail'] = 0
             status['success'] = 0
@@ -447,13 +497,10 @@ def search_worker_thread(args, account, search_items_queue, pause_bit, encryptio
 
                 # If this account has been messing up too hard, let it rest
                 if status['fail'] >= args.max_failures:
-                    end_sleep = now() + (3600 * 2)
-                    long_sleep_started = time.strftime('%H:%M:%S')
-                    while now() < end_sleep:
-                        status['message'] = 'Worker {} failed more than {} scans; possibly banned account. Sleeping for 2 hour sleep as of {}'.format(account['username'], args.max_failures, long_sleep_started)
-                        log.error(status['message'])
-                        time.sleep(300)
-                    break  # exit this loop to have the API recreated
+                    status['message'] = 'Account {} failed more than {} scans; possibly bad account. Switching accounts...'.format(account['username'])
+                    log.warning(status['message'])
+                    account_failures.append({'account': account, 'last_fail_time': now()})
+                    break  # exit this loop to get a new account and have the API recreated
 
                 while pause_bit.is_set():
                     status['message'] = 'Scanning paused'
@@ -517,6 +564,7 @@ def search_worker_thread(args, account, search_items_queue, pause_bit, encryptio
                     search_items_queue.task_done()
                     status[('success' if parsed['count'] > 0 else 'noitems')] += 1
                     status['message'] = 'Search at {:6f},{:6f} completed with {} finds'.format(step_location[0], step_location[1], parsed['count'])
+                    status['fail'] = 0
                     log.debug(status['message'])
                 except KeyError:
                     parsed = False
@@ -581,9 +629,10 @@ def search_worker_thread(args, account, search_items_queue, pause_bit, encryptio
 
         # catch any process exceptions, log them, and continue the thread
         except Exception as e:
-            status['message'] = 'Exception in search_worker: {}'.format(e)
-            log.exception(status['message'])
+            status['message'] = 'Exception in search_worker using account {}. Restarting with fresh account. See logs for details.'.format(account['username'])
             time.sleep(args.scan_delay)
+            log.error('Exception in search_worker under account {} Exception message: {}'.format(account['username'], e))
+            account_failures.append({'account': account, 'last_fail_time': now()})
 
 
 def check_login(args, account, api, position):
