@@ -1438,9 +1438,9 @@ function changeSpawnIcon (color, zoom) {
   } else {
     urlColor = './static/icons/hsl-' + color + '.png'
   }
-  var zoomScale = 3.5
-  var minimumSize = 2
-  var newSize = Math.round(zoomScale * zoom - 30) // this scales the icon based on zoom. may need adjusting
+  var zoomScale = 1.6 // adjust this value to change the size of the spawnpoint icons
+  var minimumSize = 1
+  var newSize = Math.round(zoomScale * (zoom - 10)) // this scales the icon based on zoom
   if (newSize < minimumSize) {
     newSize = minimumSize
   }
