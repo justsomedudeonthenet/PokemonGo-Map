@@ -858,6 +858,7 @@ function initMap () { // eslint-disable-line no-unused-vars
     fullscreenControl: true,
     streetViewControl: false,
     mapTypeControl: false,
+    clickableIcons: false,
     mapTypeControlOptions: {
       style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
       position: google.maps.ControlPosition.RIGHT_TOP,
@@ -1419,7 +1420,6 @@ function getColorBySpawnTime (value) {
 
   var diff = (seconds - value)
   var hue = 275 // light purple when spawn is neither about to spawn nor active
-
   if (diff >= 0 && diff <= 900) { // green to red over 15 minutes of active spawn
     hue = (1 - (diff / 60 / 15)) * 120
   } else if (diff < 0 && diff > -300) { // light blue to dark blue over 5 minutes til spawn
