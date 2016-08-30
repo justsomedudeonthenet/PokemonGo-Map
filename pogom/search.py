@@ -497,7 +497,7 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
 
                 # If this account has been messing up too hard, let it rest
                 if status['fail'] >= args.max_failures:
-                    status['message'] = 'Account {} failed more than {} scans; possibly bad account. Switching accounts...'.format(account['username'])
+                    status['message'] = 'Account {} failed more than {} scans; possibly bad account. Switching accounts...'.format(account['username'], args.max_failures)
                     log.warning(status['message'])
                     account_failures.append({'account': account, 'last_fail_time': now()})
                     break  # exit this loop to get a new account and have the API recreated
