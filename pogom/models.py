@@ -929,7 +929,6 @@ def database_migrate(db, old_ver):
             migrator.add_column('gym', 'last_scanned', DateTimeField(null=True)),
         )
 
-
     if old_ver < 7:
         migrate(
             migrator.drop_column('gymdetails', 'description'),
