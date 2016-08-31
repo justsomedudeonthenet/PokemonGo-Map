@@ -115,6 +115,12 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
         # Create a list to hold all the status lines, so they can be printed all at once to reduce flicker
         status_text = []
 
+        # Find the longest username
+        userlen = 4
+        for item in threadStatus:
+            if threadStatus[item]['type'] == 'Worker':
+                userlen = max(userlen, len(threadStatus[item]['user']))
+
         if display_type[0] == 'workers':
 
             # Get the terminal size
@@ -151,12 +157,6 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
             end_line = start_line + usable_height
             current_line = 1
 
-            # longest username
-            userlen = 4
-            for item in threadStatus:
-                if threadStatus[item]['type'] == 'Worker':
-                    userlen = max(userlen, len(threadStatus[item]['user']))
-
             # How pretty
             status = '{:10} | {:5} | {:' + str(userlen) + '} | {:7} | {:6} | {:5} | {:7} | {:10}'
 
@@ -180,7 +180,7 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
             status_text.append('-----------------------------------------')
 
             status = '{:' + str(userlen) + '} | {:10} | {:20}'
-            status_text.append(status.format('Username', 'Hold Time', 'Reason'))
+            status_text.append(status.format('User', 'Hold Time', 'Reason'))
 
             for account in account_failures:
                 status_text.append(status.format(account['account']['username'], time.strftime('%H:%M:%S', time.localtime(account['last_fail_time'])), account['reason']))
