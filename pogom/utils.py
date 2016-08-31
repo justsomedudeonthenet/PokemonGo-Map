@@ -46,11 +46,11 @@ def get_args():
     # fuck PEP8
     configpath = os.path.join(os.path.dirname(__file__), '../config/config.ini')
     parser = configargparse.ArgParser(default_config_files=[configpath], auto_env_var_prefix='POGOMAP_')
-    parser.add_argument('-a', '--auth-service', type=str.lower, action='append',
+    parser.add_argument('-a', '--auth-service', type=str.lower, action='append', default=[],
                         help='Auth Services, either one for all accounts or one per account: ptc or google. Defaults all to ptc.')
-    parser.add_argument('-u', '--username', action='append',
+    parser.add_argument('-u', '--username', action='append', default=[],
                         help='Usernames, one per account.')
-    parser.add_argument('-p', '--password', action='append',
+    parser.add_argument('-p', '--password', action='append', default=[],
                         help='Passwords, either single one for all accounts or one per account.')
     parser.add_argument('-w', '--workers', type=int,
                         help='Number of search worker threads to start. Defaults to the number of accounts specified.')
@@ -58,6 +58,7 @@ def get_args():
                         help='Seconds for accounts to search before switching to a new account')
     parser.add_argument('-ari', '--account-rest-interval', type=int, default=7200,
                         help='Seconds for accounts to rest when they fail or are switched out')
+    parser.add_argument('-ac', '--accountcsv')
     parser.add_argument('-l', '--location', type=parse_unicode,
                         help='Location, can be an address or coordinates')
     parser.add_argument('-j', '--jitter', help='Apply random -9m to +9m jitter to location',
@@ -175,29 +176,44 @@ def get_args():
             print(sys.argv[0] + ": error: arguments -l/--location is required")
             sys.exit(1)
     else:
+        # If using a CSV file, add the data into the username,password and auth_service arguments.
+        # CSV file should have lines like "ptc,username,password".  Additional fields after that are ignored.
+        if(args.accountcsv is not None):
+            account_fh = open(args.accountcsv, 'r')
+            account_fields = [line.split(",") for line in account_fh]
+            account_fh.close()
+            try:
+                for line in account_fields:
+                    args.auth_service.append(line[0].strip())
+                    args.username.append(line[1].strip())
+                    args.password.append(line[2].strip())
+            except:
+                print(sys.argv[0] + ": Error parsing CSV file. Lines must be in the format '<method>,<username>,<password>'. Additional fields after those are ignored.")
+                sys.exit(1)
+
         errors = []
 
         num_auths = 1
         num_usernames = 0
         num_passwords = 0
 
-        if (args.username is None):
-            errors.append('Missing `username` either as -u/--username or in config')
+        if (len(args.username) == 0):
+            errors.append('Missing `username` either as -u/--username, csv file, or in config')
         else:
             num_usernames = len(args.username)
 
         if (args.location is None):
             errors.append('Missing `location` either as -l/--location or in config')
 
-        if (args.password is None):
-            errors.append('Missing `password` either as -p/--password or in config')
+        if (len(args.password) == 0):
+            errors.append('Missing `password` either as -p/--password, csv file, or in config')
         else:
             num_passwords = len(args.password)
 
         if (args.step_limit is None):
             errors.append('Missing `step_limit` either as -st/--step-limit or in config')
 
-        if args.auth_service is None:
+        if len(args.auth_service) is None:
             args.auth_service = ['ptc']
         else:
             num_auths = len(args.auth_service)
@@ -230,6 +246,11 @@ def get_args():
         if (args.workers is None):
             args.workers = len(args.accounts)
             args.account_search_interval = None
+
+        # Make sure we don't have an empty account list after adding command line and CSV accounts
+        if len(args.accounts) == 0:
+            print(sys.argv[0] + ": Error: no accounts specified. Use -a, -u, and -p or --accountcsv to add accounts")
+            sys.exit(1)
 
     return args
 
