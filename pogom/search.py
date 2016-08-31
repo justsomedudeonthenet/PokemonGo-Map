@@ -179,8 +179,11 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
             status_text.append('Accounts on hold:')
             status_text.append('-----------------------------------------')
 
+            status = '{:' + str(userlen) + '} | {:10} | {:20}'
+            status_text.append(status.format('Username', 'Hold Time', 'Reason'))
+
             for account in account_failures:
-                status_text.append('{} - put on hold at {} due to {}'.format(account['account']['username'], time.strftime('%H:%M:%S', time.localtime(account['last_fail_time'])), account['reason']))
+                status_text.append(status.format(account['account']['username'], time.strftime('%H:%M:%S', time.localtime(account['last_fail_time'])), account['reason']))
 
         # Print the status_text for the current screen
         status_text.append('Page {}/{}. Page number to switch pages. F to show on hold accounts. <ENTER> alone to switch between status and log view'.format(current_page[0], total_pages))
