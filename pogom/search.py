@@ -62,7 +62,7 @@ def cur_sec():
 
 
 # Thread to handle user input
-def switch_status_printer(display_enabled, current_page):
+def switch_status_printer(display_type, current_page):
     # Get a reference to the root logger
     mainlog = logging.getLogger()
     # Disable logging of the first handler - the stream handler, and disable it's output
@@ -74,32 +74,49 @@ def switch_status_printer(display_enabled, current_page):
 
         if command == '':
             # Switch between logging and display.
-            if display_enabled[0]:
+            if display_type[0] != 'logs':
                 # Disable display, enable on screen logging
                 mainlog.handlers[0].setLevel(logging.DEBUG)
-                display_enabled[0] = False
-            else:
+                display_type[0] = 'logs'
+                # If logs are going slowly, sometimes it's hard to tell you switched.  Make it clear.
+                print 'Showing logs...'
+            elif display_type[0] == 'logs':
                 # Enable display, disable on screen logging (except for critical messages)
                 mainlog.handlers[0].setLevel(logging.CRITICAL)
-                display_enabled[0] = True
+                display_type[0] = 'workers'
         elif command.isdigit():
                 current_page[0] = int(command)
+                mainlog.handlers[0].setLevel(logging.CRITICAL)
+                display_type[0] = 'workers'
+        elif command.lower() == 'f':
+                mainlog.handlers[0].setLevel(logging.CRITICAL)
+                display_type[0] = 'failedaccounts'
+                
 
 
 # Thread to print out the status of each worker
 def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue, account_queue, account_failures):
-    display_enabled = [True]
+    display_type = ["workers"]
     current_page = [1]
 
     # Start another thread to get user input
     t = Thread(target=switch_status_printer,
                name='switch_status_printer',
-               args=(display_enabled, current_page))
+               args=(display_type, current_page))
     t.daemon = True
     t.start()
 
     while True:
-        if display_enabled[0]:
+        time.sleep(1)
+
+        if display_type[0] == 'logs':
+            # In log display mode, we don't want to show anything
+            continue
+
+        # Create a list to hold all the status lines, so they can be printed all at once to reduce flicker
+        status_text = []
+
+        if display_type[0] == 'workers':
 
             # Get the terminal size
             width, height = terminalsize.get_terminal_size()
@@ -108,9 +125,6 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
             # Prevent people running terminals only 6 lines high from getting a divide by zero
             if usable_height < 1:
                 usable_height = 1
-
-            # Create a list to hold all the status lines, so they can be printed all at once to reduce flicker
-            status_text = []
 
             # Calculate total skipped items
             skip_total = 0
@@ -160,12 +174,21 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
                         break
 
                     status_text.append(status.format(item, threadStatus[item]['user'], threadStatus[item]['success'], threadStatus[item]['fail'], threadStatus[item]['noitems'], threadStatus[item]['skip'], threadStatus[item]['message']))
-            status_text.append('Page {}/{}.  Type page number and <ENTER> to switch pages.  Press <ENTER> alone to switch between status and log view'.format(current_page[0], total_pages))
-            # Clear the screen
-            os.system('cls' if os.name == 'nt' else 'clear')
-            # Print status
-            print "\n".join(status_text)
-        time.sleep(1)
+
+        elif display_type[0] == 'failedaccounts':
+            status_text.append('-----------------------------------------')
+            status_text.append('Accounts on hold after too many failures:')
+            status_text.append('-----------------------------------------')
+
+            for account in account_failures:
+                status_text.append('{} - failed at {}'.format(account['account']['username'], time.strftime('%H:%M:%S', time.localtime(account['last_fail_time']))))
+
+        # Print the status_text for the current screen
+        status_text.append('Page {}/{}. Page number to switch pages. F to show on hold accounts. <ENTER> alone to switch between status and log view'.format(current_page[0], total_pages))
+        # Clear the screen
+        os.system('cls' if os.name == 'nt' else 'clear')
+        # Print status
+        print "\n".join(status_text)
 
 
 # The account recycler monitors failed accounts and places them back in the account queue 2 hours after they failed.
