@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+from gevent import monkey
+monkey.patch_all()
 import os
 import sys
 import shutil
@@ -17,8 +18,6 @@ from threading import Thread, Event
 from queue import Queue
 from flask_cors import CORS
 from flask_cache_bust import init_cache_busting
-from gevent import monkey
-monkey.patch_all()
 from gevent import pywsgi
 
 from pogom import config
