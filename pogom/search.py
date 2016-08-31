@@ -158,7 +158,7 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
                     userlen = max(userlen, len(threadStatus[item]['user']))
 
             # How pretty
-            status = '{:10} | {:' + str(userlen) + '} | {:5} | {:7} | {:6} | {:5} | {:7} | {:10}'
+            status = '{:10} | {:5} | {:' + str(userlen) + '} | {:7} | {:6} | {:5} | {:7} | {:10}'
 
             # Print the worker status
             status_text.append(status.format('Worker ID', 'Start', 'User', 'Success', 'Failed', 'Empty', 'Skipped', 'Message'))
