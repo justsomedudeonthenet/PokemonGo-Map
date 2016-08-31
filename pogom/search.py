@@ -91,7 +91,6 @@ def switch_status_printer(display_type, current_page):
         elif command.lower() == 'f':
                 mainlog.handlers[0].setLevel(logging.CRITICAL)
                 display_type[0] = 'failedaccounts'
-                
 
 
 # Thread to print out the status of each worker
