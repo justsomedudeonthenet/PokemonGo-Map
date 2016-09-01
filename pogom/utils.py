@@ -52,7 +52,8 @@ def get_args():
                         help='Usernames, one per account.')
     parser.add_argument('-p', '--password', action='append', default=[],
                         help='Passwords, either single one for all accounts or one per account.')
-    parser.add_argument('-ac', '--accountcsv')
+    parser.add_argument('-ac', '--accountcsv',
+                        help='Load accounts from CSV file containing "auth_service,username,passwd" lines')
     parser.add_argument('-l', '--location', type=parse_unicode,
                         help='Location, can be an address or coordinates')
     parser.add_argument('-j', '--jitter', help='Apply random -9m to +9m jitter to location',
@@ -173,17 +174,30 @@ def get_args():
         # If using a CSV file, add the data into the username,password and auth_service arguments.
         # CSV file should have lines like "ptc,username,password".  Additional fields after that are ignored.
         if(args.accountcsv is not None):
-            account_fh = open(args.accountcsv, 'r')
-            account_fields = [line.split(",") for line in account_fh]
-            account_fh.close()
-            try:
-                for line in account_fields:
-                    args.auth_service.append(line[0].strip())
-                    args.username.append(line[1].strip())
-                    args.password.append(line[2].strip())
-            except:
-                print(sys.argv[0] + ": Error parsing CSV file. Lines must be in the format '<method>,<username>,<password>'. Additional fields after those are ignored.")
-                sys.exit(1)
+            with open(args.accountcsv, 'r') as f:
+                for num, line in enumerate(f, 1):
+
+                    # Ignore blank lines and comment lines
+                    if len(line.strip()) == 0 or line.startswith('#'):
+                        continue
+
+                    # Split into fields
+                    fields = line.split(",")
+
+                    # Make sure it has at least 3 fields
+                    if(len(fields) < 3):
+                        print(sys.argv[0] + ": Error parsing CSV file on line " + str(num) + ". Lines must be in the format '<method>,<username>,<password>'. Additional fields after those are ignored.")
+                        sys.exit(1)
+
+                    # Make sure none of the fields are blank
+                    if(len(fields[0]) == 0 or len(fields[1]) == 0 or len(fields[2]) == 0):
+                        print(sys.argv[0] + ": Error parsing CSV file on line " + str(num) + ". Lines must be in the format '<method>,<username>,<password>'. Additional fields after those are ignored.")
+                        sys.exit(1)
+
+                    # Add the account to the list
+                    args.auth_service.append(fields[0].strip())
+                    args.username.append(fields[1].strip())
+                    args.password.append(fields[2].strip())
 
         errors = []
 
@@ -192,7 +206,7 @@ def get_args():
         num_passwords = 0
 
         if (len(args.username) == 0):
-            errors.append('Missing `username` either as -u/--username, csv file, or in config')
+            errors.append('Missing `username` either as -u/--username, csv file using -ac, or in config')
         else:
             num_usernames = len(args.username)
 
