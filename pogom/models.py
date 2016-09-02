@@ -227,9 +227,6 @@ class Pokemon(BaseModel):
         :param timediff: limiting period of the selection
         :return: list of time appearances over a selected period
         '''
-        logging.error(pokemon_id)
-        logging.error(spawnpoint_id)
-        logging.error(timediff)
         if timediff:
             timediff = datetime.utcnow() - timediff
         query = (Pokemon
