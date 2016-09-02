@@ -226,7 +226,7 @@ function loadDetails () {
   })
 }
 
-function loadAppearancesTimes(pokemonId, spawnpointId) {
+function loadAppearancesTimes (pokemonId, spawnpointId) {
   return $.ajax({
     url: 'raw_data',
     type: 'GET',
@@ -435,7 +435,7 @@ function redrawAppearances (appearances) {
 function appearanceTab (item) {
   var times = ''
   return loadAppearancesTimes(item['pokemon_id'], item['spawnpoint_id']).then(function (result) {
-    $.each(result.appearancesTimes, function(key, value){
+    $.each(result.appearancesTimes, function (key, value) {
       var saw = new Date(value)
       saw = saw.getHours() + ':' +
           ('0' + saw.getMinutes()).slice(-2) + ':' +
@@ -482,8 +482,6 @@ function updateDetails () {
     }
   })
 }
-
-
 
 if (location.href.match(/overlay_[0-9]+/g)) {
   showOverlay(location.href.replace(/^.*overlay_([0-9]+).*$/, '$1'))
