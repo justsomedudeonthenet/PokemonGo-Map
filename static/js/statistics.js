@@ -226,7 +226,7 @@ function loadDetails () {
   })
 }
 
-function loadAppearancesTimes(pokemon_id, spawnpoint_id) {
+function loadAppearancesTimes(pokemonId, spawnpointId) {
   return $.ajax({
     url: 'raw_data',
     type: 'GET',
@@ -237,8 +237,8 @@ function loadAppearancesTimes(pokemon_id, spawnpoint_id) {
       'scanned': false,
       'appearances': false,
       'appearancesDetails': true,
-      'pokemonid': pokemon_id,
-      'spawnpoint_id': spawnpoint_id,
+      'pokemonid': pokemonId,
+      'spawnpoint_id': spawnpointId,
       'duration': $('#duration').val()
     },
     dataType: 'json',
@@ -404,16 +404,16 @@ function closeOverlay () { // eslint-disable-line no-unused-vars
 }
 
 function processAppearance (i, item) {
-  var spawnpoint_id = item['spawnpoint_id']
-  if (!((spawnpoint_id) in mapData.appearances)) {
+  var spawnpointId = item['spawnpoint_id']
+  if (!((spawnpointId) in mapData.appearances)) {
     if (item['marker']) {
       item['marker'].setMap(null)
     }
     item['marker'] = setupPokemonMarker(item, true)
-    item['marker'].spawnpoint_id = spawnpoint_id
-    mapData.appearances[spawnpoint_id] = item
+    item['marker'].spawnpointId = spawnpointId
+    mapData.appearances[spawnpointId] = item
   } else {
-    mapData.appearances[spawnpoint_id].count += item['count']
+    mapData.appearances[spawnpointId].count += item['count']
   }
 
   heatmapPoints.push(new google.maps.LatLng(item['latitude'], item['longitude']))
@@ -426,7 +426,7 @@ function redrawAppearances (appearances) {
     if (!item['hidden']) {
       var newMarker = setupPokemonMarker(item, true)
       item['marker'].setMap(null)
-      item['marker'].spawnpoint_id = spawnpoint_id
+      item['marker'].spawnpointId = item['spawnpoint_id']
       appearances[key].marker = newMarker
     }
   })
