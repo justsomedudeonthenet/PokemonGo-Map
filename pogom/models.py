@@ -222,10 +222,10 @@ class Pokemon(BaseModel):
     @classmethod
     def get_appearances_times_by_spawnpoint(cls, pokemon_id, spawnpoint_id, timediff):
         '''
-        :param pokemon_id: id of pokemon that we need appearances for
-        :param last_appearance: time of last appearance of pokemon after which we are getting appearances
+        :param pokemon_id: id of pokemon that we need appearances times for
+        :param spawnpoint_id: spawnpoing id we need appearances times for
         :param timediff: limiting period of the selection
-        :return: list of  pokemon  appearances over a selected period
+        :return: list of time appearances over a selected period
         '''
         logging.error(pokemon_id)
         logging.error(spawnpoint_id)
