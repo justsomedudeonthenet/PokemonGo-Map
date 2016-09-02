@@ -185,8 +185,8 @@ function updateMap (firstRun) {
 updateMap()
 
 /* Overlay */
-var detailsLoading = false;
-var appearancesTimesLoading = false;
+var detailsLoading = false
+var appearancesTimesLoading = false
 var detailInterval = null
 var lastappearance = 1
 var pokemonid = 0
@@ -257,11 +257,9 @@ function loadAppearancesTimes(pokemon_id, spawnpoint_id) {
 
 function showTimes (marker) {
   appearanceTab(mapData.appearances[marker.spawnpoint_id]).then(function (value) {
-    console.log(value);
-    $('#times_list').html(value);
-    $('#times_list').show();
-  });
-
+    $('#times_list').html(value)
+    $('#times_list').show()
+  })
 }
 
 function closeTimes () {
@@ -406,16 +404,16 @@ function closeOverlay () { // eslint-disable-line no-unused-vars
 }
 
 function processAppearance (i, item) {
-  var spawnpoint_id = item['spawnpoint_id'];
+  var spawnpoint_id = item['spawnpoint_id']
   if (!((spawnpoint_id) in mapData.appearances)) {
     if (item['marker']) {
       item['marker'].setMap(null)
     }
-    item['marker'] = setupPokemonMarker(item, true);
-    item['marker'].spawnpoint_id = spawnpoint_id;
+    item['marker'] = setupPokemonMarker(item, true)
+    item['marker'].spawnpoint_id = spawnpoint_id
     mapData.appearances[spawnpoint_id] = item
   } else {
-    mapData.appearances[spawnpoint_id].count += item['count'];
+    mapData.appearances[spawnpoint_id].count += item['count']
   }
 
   heatmapPoints.push(new google.maps.LatLng(item['latitude'], item['longitude']))
@@ -424,29 +422,29 @@ function processAppearance (i, item) {
 
 function redrawAppearances (appearances) {
   $.each(appearances, function (key, value) {
-    var item = appearances[key];
+    var item = appearances[key]
     if (!item['hidden']) {
-      var newMarker = setupPokemonMarker(item, true);
-      item['marker'].setMap(null);
-      item['marker'].spawnpoint_id = spawnpoint_id;
+      var newMarker = setupPokemonMarker(item, true)
+      item['marker'].setMap(null)
+      item['marker'].spawnpoint_id = spawnpoint_id
       appearances[key].marker = newMarker
     }
   })
 }
 
 function appearanceTab (item) {
-  var times = '';
+  var times = ''
   return loadAppearancesTimes(item['pokemon_id'], item['spawnpoint_id']).then(function (result) {
     $.each(result.appearancesTimes, function(key, value){
-      var saw = new Date(value);
+      var saw = new Date(value)
       saw = saw.getHours() + ':' +
           ('0' + saw.getMinutes()).slice(-2) + ':' +
           ('0' + saw.getSeconds()).slice(-2) + ' ' +
           saw.getDate() + ' ' +
           monthArray[saw.getMonth()] + ' ' +
-          saw.getFullYear();
+          saw.getFullYear()
       times = '<div class="row' + (key % 2) + '">' + saw + '</div>' + times
-    });
+    })
     return `<div>
                 <a href="javascript:closeTimes();">Close this tab</a>
             </div>
@@ -463,12 +461,12 @@ function appearanceTab (item) {
             <div>
                 ${times}
             </div>`
-  });
+  })
 }
 
 function updateDetails () {
   loadDetails().done(function (result) {
-    $.each(result.appearances, processAppearance);
+    $.each(result.appearances, processAppearance)
 
     // Redraw the heatmap with all the new appearances
     if (heatmapNumPoints !== heatmapPoints.length) {
@@ -479,7 +477,7 @@ function updateDetails () {
         data: heatmapPoints,
         map: map,
         radius: 50
-      });
+      })
       heatmapNumPoints = heatmapPoints.length
     }
   })
