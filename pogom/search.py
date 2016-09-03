@@ -158,8 +158,8 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
             for item in threadStatus:
                 if threadStatus[item]['type'] == 'Worker':
                     userlen = max(userlen, len(threadStatus[item]['user']))
-                    if 'proxy' in threadStatus[item]:
-                        proxylen = max(proxylen, len(str(threadStatus[item]['proxy'])))
+                    if 'proxy_display' in threadStatus[item]:
+                        proxylen = max(proxylen, len(str(threadStatus[item]['proxy_display'])))
 
             # How pretty
             status = '{:10} | {:5} | {:' + str(userlen) + '} | {:' + str(proxylen) + '} | {:7} | {:6} | {:5} | {:7} | {:10}'
@@ -175,12 +175,8 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
                         continue
                     if current_line > end_line:
                         break
-                    if threadStatus[item]['proxy'] or isinstance(threadStatus[item]['proxy'], int):
-                        used_proxy = threadStatus[item]['proxy']
-                    else:
-                        used_proxy = 'No'
 
-                    status_text.append(status.format(item, time.strftime('%H:%M', time.localtime(threadStatus[item]['starttime'])), threadStatus[item]['user'], used_proxy, threadStatus[item]['success'], threadStatus[item]['fail'], threadStatus[item]['noitems'], threadStatus[item]['skip'], threadStatus[item]['message']))
+                    status_text.append(status.format(item, time.strftime('%H:%M', time.localtime(threadStatus[item]['starttime'])), threadStatus[item]['user'], threadStatus[item]['proxy_display'], threadStatus[item]['success'], threadStatus[item]['fail'], threadStatus[item]['noitems'], threadStatus[item]['skip'], threadStatus[item]['message']))
 
         elif display_type[0] == 'failedaccounts':
             status_text.append('-----------------------------------------')
@@ -315,13 +311,14 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
     for i in range(0, args.workers):
         log.debug('Starting search worker thread %d', i)
 
-        # Set proxy to account, using round rubin
-        using_proxy = ''
-        account['proxy'] = False
+        # Set proxy for each worker, using round robin
+        proxy_display = 'No'
+        proxy_url = False
+
         if args.proxy:
-            using_proxy = account['proxy'] = args.proxy[i % len(args.proxy)]
+            proxy_display = proxy_url = args.proxy[i % len(args.proxy)]
             if args.proxy_display.upper() != 'FULL':
-                using_proxy = i % len(args.proxy)
+                proxy_display = i % len(args.proxy)
 
         workerId = 'Worker {:03}'.format(i)
         threadStatus[workerId] = {
@@ -332,7 +329,8 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
             'noitems': 0,
             'skip': 0,
             'user': '',
-            'proxy': using_proxy
+            'proxy_display': proxy_display,
+            'proxy_url': proxy_url,
         }
 
         t = Thread(target=search_worker_thread,
@@ -577,9 +575,9 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
             else:
                 api = PGoApi()
 
-            if account['proxy']:
-                log.debug("Using proxy %s for account %s", account['proxy'], account['username'])
-                api.set_proxy({'http': account['proxy'], 'https': account['proxy']})
+            if status['proxy_url']:
+                log.debug("Using proxy %s", status['proxy_url'])
+                api.set_proxy({'http': status['proxy_url'], 'https': status['proxy_url']})
 
             api.activate_signature(encryption_lib_path)
 
@@ -644,7 +642,7 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
                 api.set_position(*step_location)
 
                 # Ok, let's get started -- check our login status
-                check_login(args, account, api, step_location)
+                check_login(args, account, api, step_location, status['proxy_url'])
 
                 # Make the actual request (finally!)
                 response_dict = map_request(api, step_location, args.jitter)
@@ -734,7 +732,7 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
             account_failures.append({'account': account, 'last_fail_time': now(), 'reason': 'exception'})
 
 
-def check_login(args, account, api, position):
+def check_login(args, account, api, position, proxy_url):
 
     # Logged in? Enough time left? Cool!
     if api._auth_provider and api._auth_provider._ticket_expire:
@@ -748,8 +746,8 @@ def check_login(args, account, api, position):
     api.set_position(position[0], position[1], position[2])
     while i < args.login_retries:
         try:
-            if account['proxy']:
-                api.set_authentication(provider=account['auth_service'], username=account['username'], password=account['password'], proxy_config={'http': account['proxy'], 'https': account['proxy']})
+            if proxy_url:
+                api.set_authentication(provider=account['auth_service'], username=account['username'], password=account['password'], proxy_config={'http': proxy_url, 'https': proxy_url})
             else:
                 api.set_authentication(provider=account['auth_service'], username=account['username'], password=account['password'])
             break
