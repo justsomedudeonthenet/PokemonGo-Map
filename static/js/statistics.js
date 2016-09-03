@@ -4,6 +4,9 @@ var monthArray = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
 /* Main stats page */
 var rawDataIsLoading = false
 var totalPokemon = 151
+var msPerMinute = 60000
+var spawnTimeMinutes = 15
+var spawnTimeMs = msPerMinute * spawnTimeMinutes
 
 function loadRawData () {
   return $.ajax({
@@ -256,7 +259,7 @@ function loadAppearancesTimes (pokemonId, spawnpointId) {
 }
 
 function showTimes (marker) {
-  appearanceTab(mapData.appearances[marker.spawnpoint_id]).then(function (value) {
+  appearanceTab(mapData.appearances[marker.spawnpointId]).then(function (value) {
     $('#times_list').html(value)
     $('#times_list').show()
   })
@@ -436,7 +439,7 @@ function appearanceTab (item) {
   var times = ''
   return loadAppearancesTimes(item['pokemon_id'], item['spawnpoint_id']).then(function (result) {
     $.each(result.appearancesTimes, function (key, value) {
-      var saw = new Date(value)
+      var saw = new Date(value-spawnTimeMs)
       saw = saw.getHours() + ':' +
           ('0' + saw.getMinutes()).slice(-2) + ':' +
           ('0' + saw.getSeconds()).slice(-2) + ' ' +
