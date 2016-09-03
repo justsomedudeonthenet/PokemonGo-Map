@@ -439,7 +439,7 @@ function appearanceTab (item) {
   var times = ''
   return loadAppearancesTimes(item['pokemon_id'], item['spawnpoint_id']).then(function (result) {
     $.each(result.appearancesTimes, function (key, value) {
-      var saw = new Date(value-spawnTimeMs)
+      var saw = new Date(value - spawnTimeMs)
       saw = saw.getHours() + ':' +
           ('0' + saw.getMinutes()).slice(-2) + ':' +
           ('0' + saw.getSeconds()).slice(-2) + ' ' +
