@@ -2291,10 +2291,9 @@ $(function () {
         var center = new google.maps.LatLng(lat, lng)
 
         if (Store.get('geoLocate')) {
-          var baseURL = location.protocol + '//' + location.host + location.pathname.substring(0, location.pathname.lastIndexOf('/'))
           // the search function makes any small movements cause a loop. Need to increase resolution
           if ((typeof searchMarker !== 'undefined') && (getPointDistance(searchMarker.getPosition(), center) > 40)) {
-            $.post(baseURL + '/next_loc?lat=' + lat + '&lon=' + lng).done(function () {
+            $.post('next_loc?lat=' + lat + '&lon=' + lng).done(function () {
               map.panTo(center)
               searchMarker.setPosition(center)
             })
