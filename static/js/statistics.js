@@ -429,7 +429,7 @@ function redrawAppearances (appearances) {
     if (!item['hidden']) {
       var newMarker = setupPokemonMarker(item, true)
       item['marker'].setMap(null)
-      item['marker'].spawnpointId = item['spawnpoint_id']
+      newMarker.spawnpointId = item['spawnpoint_id']
       appearances[key].marker = newMarker
     }
   })
