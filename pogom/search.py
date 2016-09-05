@@ -37,9 +37,9 @@ from pgoapi import utilities as util
 from pgoapi.exceptions import AuthException
 
 from .models import parse_map, Pokemon, hex_bounds, GymDetails, parse_gyms, MainWorker, WorkerStatus
-from .transform import generate_location_steps
 from .fakePogoApi import FakePogoApi
 from .utils import now
+import schedulers
 
 import terminalsize
 
@@ -341,80 +341,35 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
         t.daemon = True
         t.start()
 
-    '''
-    For hex scanning, we can generate the full list of scan points well
-    in advance. When then can queue them all up to be searched as fast
-    as the threads will allow.
-
-    With spawn point scanning (sps) we can come up with the order early
-    on, and we can populate the entire queue, but the individual threads
-    will need to wait until the point is available (and ensure it is not
-    to late as well).
-    '''
-
     # A place to track the current location
     current_location = False
 
-    # Used to tell SPS to scan for all CURRENT pokemon instead
-    # of, like during a normal loop, just finding the next one
-    # which will appear (since you've already scanned existing
-    # locations in the prior loop)
-    # Needed in a first loop and pausing/changing location.
-    sps_scan_current = True
+    # Create the appropriate type of scheduler to handle the search queue.
+    scheduler = schedulers.HexSearch([search_items_queue], threadStatus, args)
 
     # The real work starts here but will halt on pause_bit.set()
     while True:
 
-        # paused; clear queue if needed, otherwise sleep and loop
+        # Wait here while scanning is paused
         while pause_bit.is_set():
-            if not search_items_queue.empty():
-                try:
-                    while True:
-                        search_items_queue.get_nowait()
-                except Empty:
-                    pass
-            threadStatus['Overseer']['message'] = 'Scanning is paused'
-            sps_scan_current = True
+            scheduler.scanning_paused()
             time.sleep(1)
 
         # If a new location has been passed to us, get the most recent one
         if not new_location_queue.empty():
             log.info('New location caught, moving search grid')
-            sps_scan_current = True
             try:
                 while True:
                     current_location = new_location_queue.get_nowait()
             except Empty:
                 pass
-
-            # We (may) need to clear the search_items_queue
-            if not search_items_queue.empty():
-                try:
-                    while True:
-                        search_items_queue.get_nowait()
-                except Empty:
-                    pass
+            scheduler.location_change(current_location)
 
         # If there are no search_items_queue either the loop has finished (or been
         # cleared above) -- either way, time to fill it back up
         if search_items_queue.empty():
-            log.debug('Search queue empty, restarting loop')
-
-            # locations = [((lat, lng, alt), ts_appears, ts_leaves),...]
-            if method == 'hex':
-                locations = get_hex_location_list(args, current_location)
-            else:
-                locations = get_sps_location_list(args, current_location, sps_scan_current)
-                sps_scan_current = False
-
-            if len(locations) == 0:
-                log.warning('Nothing to scan!')
-
-            threadStatus['Overseer']['message'] = 'Queuing steps'
-            for step, step_location in enumerate(locations, 1):
-                log.debug('Queueing step %d @ %f/%f/%f', step, step_location[0][0], step_location[0][1], step_location[0][2])
-                search_args = (step, step_location[0], step_location[1], step_location[2])
-                search_items_queue.put(search_args)
+            log.debug('Search queue empty, scheduling more items to scan')
+            scheduler.schedule()
         else:
             nextitem = search_items_queue.queue[0]
             threadStatus['Overseer']['message'] = 'Processing search queue, next item is {:6f},{:6f}'.format(nextitem[1][0], nextitem[1][1])
@@ -428,38 +383,6 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
 
         # Now we just give a little pause here
         time.sleep(1)
-
-
-def get_hex_location_list(args, current_location):
-    # if we are only scanning for pokestops/gyms, then increase step radius to visibility range
-    if args.no_pokemon:
-        step_distance = 0.900
-    else:
-        step_distance = 0.070
-
-    # update our list of coords
-    locations = generate_location_steps(current_location, args.step_limit, step_distance)
-
-    # In hex "spawns only" mode, filter out scan locations with no history of pokemons
-    if args.spawnpoints_only and not args.no_pokemon:
-        n, e, s, w = hex_bounds(current_location, args.step_limit)
-        spawnpoints = set((d['latitude'], d['longitude']) for d in Pokemon.get_spawnpoints(s, w, n, e))
-
-        if len(spawnpoints) == 0:
-            log.warning('No spawnpoints found in the specified area! (Did you forget to run a normal scan in this area first?)')
-
-        def any_spawnpoints_in_range(coords):
-            return any(geopy.distance.distance(coords, x).meters <= 70 for x in spawnpoints)
-
-        locations = [coords for coords in locations if any_spawnpoints_in_range(coords)]
-
-    # put into the right struture with zero'ed before/after values
-    # locations = [(lat, lng, alt, ts_appears, ts_leaves),...]
-    locationsZeroed = []
-    for location in locations:
-        locationsZeroed.append(((location[0], location[1], 0), 0, 0))
-
-    return locationsZeroed
 
 
 def get_sps_location_list(args, current_location, sps_scan_current):
