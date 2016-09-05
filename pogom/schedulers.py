@@ -31,6 +31,8 @@ Where:
     appears_seconds and disappears_seconds are used to skip scans that are too late, and wait for scans the
     worker is early for.  If a scheduler doesn't have a specific time a location needs to be scanned, it
     should set both to 0.
+
+If implementing a new scheduler, place it before SchedulerFactory, and add it to __scheduler_classes
 '''
 
 import logging
@@ -44,7 +46,6 @@ from .models import hex_bounds, Pokemon
 from .utils import now, cur_sec
 
 log = logging.getLogger(__name__)
-
 
 
 # Simple base class that all other schedulers inherit from
@@ -347,8 +348,6 @@ class SpawnScan(BaseScheduler):
             log.debug("Added location {}".format(location))
 
 
-
-
 # The SchedulerFactory returns an instance of the correct type of scheduler
 class SchedulerFactory():
     __schedule_classes = {
@@ -365,4 +364,3 @@ class SchedulerFactory():
             return scheduler_class(*args, **kwargs)
 
         raise NotImplementedError("The requested scheduler has not been implemented")
-

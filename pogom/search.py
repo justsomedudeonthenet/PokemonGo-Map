@@ -19,7 +19,6 @@ Search Architecture:
 
 import logging
 import math
-import json
 import os
 import random
 import time
@@ -27,7 +26,6 @@ import geopy
 import geopy.distance
 
 from datetime import datetime
-from operator import itemgetter
 from threading import Thread
 from queue import Queue, Empty
 
@@ -36,9 +34,9 @@ from pgoapi.utilities import f2i
 from pgoapi import utilities as util
 from pgoapi.exceptions import AuthException
 
-from .models import parse_map, Pokemon, hex_bounds, GymDetails, parse_gyms, MainWorker, WorkerStatus
+from .models import parse_map, GymDetails, parse_gyms, MainWorker, WorkerStatus
 from .fakePogoApi import FakePogoApi
-from .utils import now, cur_sec
+from .utils import now
 import schedulers
 
 import terminalsize
@@ -55,8 +53,6 @@ def jitterLocation(location=None, maxMeters=10):
     d = math.sqrt(random.random()) * (float(maxMeters) / 1000)
     destination = geopy.distance.distance(kilometers=d).destination(origin, b)
     return (destination.latitude, destination.longitude, location[2])
-
-
 
 
 # Thread to handle user input
@@ -565,7 +561,7 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
 
                 # Record the time and place the worker left off at
                 status['last_scan_time'] = now()
-                status['location'] = step_location 
+                status['location'] = step_location
 
                 # Always delay the desired amount after "scan" completion
                 status['message'] += ', sleeping {}s until {}'.format(args.scan_delay, time.strftime('%H:%M:%S', time.localtime(time.time() + args.scan_delay)))
