@@ -273,7 +273,7 @@ class SpawnScan(BaseScheduler):
             self.locations = Pokemon.get_spawnpoints_in_hex(self.scan_location, self.args.step_limit)
 
         # Well shit...
-        #if not self.locations:
+        # if not self.locations:
         #    raise Exception('No availabe spawn points!')
 
         # locations[]:
