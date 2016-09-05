@@ -206,12 +206,6 @@ def main():
 
         # Gather the pokemons!
 
-        # check the sort of scan
-        if args.spawnpoint_scanning:
-            mode = 'sps'
-        else:
-            mode = 'hex'
-
         # attempt to dump the spawn points (do this before starting threads of endure the woe)
         if args.spawnpoint_scanning and args.spawnpoint_scanning != 'nofile' and args.dump_spawnpoints:
             with open(args.spawnpoint_scanning, 'w+') as file:
@@ -220,9 +214,9 @@ def main():
                 file.write(json.dumps(spawns))
                 log.info('Finished exporting spawn points')
 
-        argset = (args, mode, new_location_queue, pause_bit, encryption_lib_path, db_updates_queue, wh_updates_queue)
+        argset = (args, new_location_queue, pause_bit, encryption_lib_path, db_updates_queue, wh_updates_queue)
 
-        log.debug('Starting a %s search thread', mode)
+        log.debug('Starting a %s search thread', args.scheduler)
         search_thread = Thread(target=search_overseer_thread, name='search-overseer', args=argset)
         search_thread.daemon = True
         search_thread.start()

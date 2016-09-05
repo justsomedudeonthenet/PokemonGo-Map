@@ -38,7 +38,7 @@ from pgoapi.exceptions import AuthException
 
 from .models import parse_map, Pokemon, hex_bounds, GymDetails, parse_gyms, MainWorker, WorkerStatus
 from .fakePogoApi import FakePogoApi
-from .utils import now
+from .utils import now, cur_sec
 import schedulers
 
 import terminalsize
@@ -57,9 +57,6 @@ def jitterLocation(location=None, maxMeters=10):
     return (destination.latitude, destination.longitude, location[2])
 
 
-# gets the current time past the hour
-def cur_sec():
-    return (60 * time.gmtime().tm_min) + time.gmtime().tm_sec
 
 
 # Thread to handle user input
@@ -136,7 +133,7 @@ def status_printer(threadStatus, search_items_queue, db_updates_queue, wh_queue,
             status_text.append('Queues: {} search items, {} db updates, {} webhook.  Total skipped items: {}. Spare accounts available: {}. Accounts on hold: {}'.format(search_items_queue.qsize(), db_updates_queue.qsize(), wh_queue.qsize(), skip_total, account_queue.qsize(), len(account_failures)))
 
             # Print status of overseer
-            status_text.append('{} Overseer: {}'.format(threadStatus['Overseer']['method'], threadStatus['Overseer']['message']))
+            status_text.append('{} Overseer: {}'.format(threadStatus['Overseer']['scheduler'], threadStatus['Overseer']['message']))
 
             # Calculate the total number of pages.  Subtracting 1 for the overseer.
             total_pages = math.ceil((len(threadStatus) - 1) / float(usable_height))
@@ -237,7 +234,7 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
                 overseer = {
                     'worker_name': name,
                     'message': status['message'],
-                    'method': status['method'],
+                    'scheduler': status['scheduler'],
                     'last_modified': datetime.utcnow()
                 }
             if status['type'] == 'Worker':
@@ -258,7 +255,7 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
 
 
 # The main search loop that keeps an eye on the over all process
-def search_overseer_thread(args, method, new_location_queue, pause_bit, encryption_lib_path, db_updates_queue, wh_queue):
+def search_overseer_thread(args, new_location_queue, pause_bit, encryption_lib_path, db_updates_queue, wh_queue):
 
     log.info('Search overseer starting')
 
@@ -281,7 +278,7 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
     threadStatus['Overseer'] = {
         'message': 'Initializing',
         'type': 'Overseer',
-        'method': 'Hex Grid' if method == 'hex' else 'Spawn Point'
+        'scheduler': args.scheduler
     }
 
     if(args.print_status):
@@ -331,6 +328,8 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
             'user': '',
             'proxy_display': proxy_display,
             'proxy_url': proxy_url,
+            'location': False,
+            'last_scan_time': 0,
         }
 
         t = Thread(target=search_worker_thread,
@@ -345,7 +344,7 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
     current_location = False
 
     # Create the appropriate type of scheduler to handle the search queue.
-    scheduler = schedulers.SpawnOnlyHexSearch([search_items_queue], threadStatus, args)
+    scheduler = schedulers.SchedulerFactory.get_scheduler(args.scheduler, [search_items_queue], threadStatus, args)
 
     # The real work starts here but will halt on pause_bit.set()
     while True:
@@ -385,87 +384,6 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
         time.sleep(1)
 
 
-def get_sps_location_list(args, current_location, sps_scan_current):
-    locations = []
-
-    # Attempt to load spawns from file
-    if args.spawnpoint_scanning != 'nofile':
-        log.debug('Loading spawn points from json file @ %s', args.spawnpoint_scanning)
-        try:
-            with open(args.spawnpoint_scanning) as file:
-                locations = json.load(file)
-        except ValueError as e:
-            log.exception(e)
-            log.error('JSON error: %s; will fallback to database', e)
-        except IOError as e:
-            log.error('Error opening json file: %s; will fallback to database', e)
-
-    # No locations yet? Try the database!
-    if not len(locations):
-        log.debug('Loading spawn points from database')
-        locations = Pokemon.get_spawnpoints_in_hex(current_location, args.step_limit)
-
-    # Well shit...
-    if not len(locations):
-        raise Exception('No availabe spawn points!')
-
-    # locations[]:
-    # {"lat": 37.53079079414139, "lng": -122.28811690874117, "spawnpoint_id": "808f9f1601d", "time": 511
-
-    log.info('Total of %d spawns to track', len(locations))
-
-    locations.sort(key=itemgetter('time'))
-
-    if args.very_verbose:
-        for i in locations:
-            sec = i['time'] % 60
-            minute = (i['time'] / 60) % 60
-            m = 'Scan [{:02}:{:02}] ({}) @ {},{}'.format(minute, sec, i['time'], i['lat'], i['lng'])
-            log.debug(m)
-
-    # 'time' from json and db alike has been munged to appearance time as seconds after the hour
-    # Here we'll convert that to a real timestamp
-    for location in locations:
-        # For a scan which should cover all CURRENT pokemon, we can offset
-        # the comparison time by 15 minutes so that the "appears" time
-        # won't be rolled over to the next hour.
-
-        # TODO: Make it work. The original logic (commented out) was producing
-        #       bogus results if your first scan was in the last 15 minute of
-        #       the hour. Wrapping my head around this isn't work right now,
-        #       so I'll just drop the feature for the time being. It does need
-        #       to come back so that repositioning/pausing works more nicely,
-        #       but we can live without it too.
-
-        # if sps_scan_current:
-        #     cursec = (location['time'] + 900) % 3600
-        # else:
-        cursec = location['time']
-
-        if cursec > cur_sec():
-            # hasn't spawn in the current hour
-            from_now = location['time'] - cur_sec()
-            appears = now() + from_now
-        else:
-            # won't spawn till next hour
-            late_by = cur_sec() - location['time']
-            appears = now() + 3600 - late_by
-
-        location['appears'] = appears
-        location['leaves'] = appears + 900
-
-    # Put the spawn points in order of next appearance time
-    locations.sort(key=itemgetter('appears'))
-
-    # Match expected structure:
-    # locations = [((lat, lng, alt), ts_appears, ts_leaves),...]
-    retset = []
-    for location in locations:
-        retset.append(((location['lat'], location['lng'], 40.32), location['appears'], location['leaves']))
-
-    return retset
-
-
 def search_worker_thread(args, account_queue, account_failures, search_items_queue, pause_bit, encryption_lib_path, status, dbq, whq):
 
     log.debug('Search worker thread starting')
@@ -491,6 +409,8 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
             status['success'] = 0
             status['noitems'] = 0
             status['skip'] = 0
+            status['location'] = False
+            status['last_scan_time'] = 0
 
             # Create the API instance this will use
             if args.mock != '':
@@ -642,6 +562,10 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
 
                         if gym_responses:
                             parse_gyms(args, gym_responses, whq)
+
+                # Record the time and place the worker left off at
+                status['last_scan_time'] = now()
+                status['location'] = step_location 
 
                 # Always delay the desired amount after "scan" completion
                 status['message'] += ', sleeping {}s until {}'.format(args.scan_delay, time.strftime('%H:%M:%S', time.localtime(time.time() + args.scan_delay)))
