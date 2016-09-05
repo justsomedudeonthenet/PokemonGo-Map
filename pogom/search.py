@@ -345,7 +345,7 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
     current_location = False
 
     # Create the appropriate type of scheduler to handle the search queue.
-    scheduler = schedulers.HexSearch([search_items_queue], threadStatus, args)
+    scheduler = schedulers.SpawnOnlyHexSearch([search_items_queue], threadStatus, args)
 
     # The real work starts here but will halt on pause_bit.set()
     while True:
@@ -363,7 +363,7 @@ def search_overseer_thread(args, method, new_location_queue, pause_bit, encrypti
                     current_location = new_location_queue.get_nowait()
             except Empty:
                 pass
-            scheduler.location_change(current_location)
+            scheduler.location_changed(current_location)
 
         # If there are no search_items_queue either the loop has finished (or been
         # cleared above) -- either way, time to fill it back up

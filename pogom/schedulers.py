@@ -28,15 +28,18 @@
 import logging
 import math
 import geopy
+from queue import Empty
 from .transform import get_new_coords
+from .models import hex_bounds, Pokemon
 
 log = logging.getLogger(__name__)
+
 
 # Simple base class that all other schedulers inherit from
 # Most of these functions should be overridden in the actual scheduler classes.
 # Not all scheduler methods will need to use all of the functions.
-class BaseScheduler:
-    def __init__(self,queues,status,args):
+class BaseScheduler(object):
+    def __init__(self, queues, status, args):
         self.queues = queues
         self.status = status
         self.args = args
@@ -46,10 +49,11 @@ class BaseScheduler:
     def schedule(self):
         pass
 
-    # location_change function is called whenever the location being scanned changes
+    # location_changed function is called whenever the location being scanned changes
     # scan_location = (lat, lng, alt)
-    def location_change(self, scan_location):
+    def location_changed(self, scan_location):
         self.scan_location = scan_location
+        self.empty_queues()
 
     # scanning_pause function is called when scanning is paused from the UI
     # The default function will empty all the queues.
@@ -76,8 +80,8 @@ class BaseScheduler:
 class HexSearch(BaseScheduler):
 
     # Call base initialization, set step_distance
-    def __init__(self,queues,status,args):
-        BaseScheduler.__init__(self,queues,status,args)
+    def __init__(self, queues, status, args):
+        BaseScheduler.__init__(self, queues, status, args)
 
         # If we are only scanning for pokestops/gyms, the scan radius can be 900m.  Otherwise 70m
         if self.args.no_pokemon:
@@ -90,7 +94,6 @@ class HexSearch(BaseScheduler):
         # This will hold the list of locations to scan so it can be reused, instead of recalculating on each loop
         self.locations = False
 
-
     # On location change, empty the current queue and the locations list
     def location_changed(self, scan_location):
         self.scan_location = scan_location
@@ -98,21 +101,21 @@ class HexSearch(BaseScheduler):
         self.locations = False
 
     # Generates the list of locations to scan
-    def _generate_locations(self, scan_location):
+    def _generate_locations(self):
         NORTH = 0
         EAST = 90
         SOUTH = 180
         WEST = 270
 
-        xdist = math.sqrt(3) * self.step_distance # dist between column centers
-        ydist = 3 * (self.step_distance / 2) # dist between row centers
+        xdist = math.sqrt(3) * self.step_distance  # dist between column centers
+        ydist = 3 * (self.step_distance / 2)       # dist between row centers
 
         results = []
 
-        results.append((scan_location[0], scan_location[1], 0))
+        results.append((self.scan_location[0], self.scan_location[1], 0))
 
         if self.step_limit > 1:
-            loc = scan_location
+            loc = self.scan_location
 
             # upper part
             ring = 1
@@ -185,7 +188,6 @@ class HexSearch(BaseScheduler):
             locationsZeroed.append((step, (location[0], location[1], 0), 0, 0))
         return locationsZeroed
 
-
     # Schedule the work to be done
     def schedule(self):
         if not self.scan_location:
@@ -194,7 +196,7 @@ class HexSearch(BaseScheduler):
 
         # Only generate the list of locations if we don't have it already calculated.
         if not self.locations:
-            self.locations = self._generate_locations(self.scan_location)
+            self.locations = self._generate_locations()
 
         for location in self.locations:
             # FUTURE IMPROVEMENT - For now, queues is assumed to have a single queue.
@@ -205,16 +207,30 @@ class HexSearch(BaseScheduler):
 # Spawn Only Hex Search works like Hex Search, but skips locations that have no known spawnpoints
 class SpawnOnlyHexSearch(HexSearch):
 
-    # Call base __init__, then load additional required data from the database
-    def __init__(self,queues,status,args):
-        HexSearch.__init__(self,queues,status,args)
+    def _any_spawnpoints_in_range(self, coords, spawnpoints):
+        return any(geopy.distance.distance(coords, x).meters <= 70 for x in spawnpoints)
+
+    # Extend the generate_locations function to remove locations with no spawnpoints
+    def _generate_locations(self):
+        n, e, s, w = hex_bounds(self.scan_location, self.step_limit)
+        spawnpoints = set((d['latitude'], d['longitude']) for d in Pokemon.get_spawnpoints(s, w, n, e))
+
+        if len(spawnpoints) == 0:
+            log.warning('No spawnpoints found in the specified area!  (Did you forget to run a normal scan in this area first?)')
+
+        # Call the original _generate_locations
+        locations = super(SpawnOnlyHexSearch, self)._generate_locations()
+
+        # Remove items with no spawnpoints in range
+        locations = [coords for coords in locations if self._any_spawnpoints_in_range(coords[1], spawnpoints)]
+
+        return locations
 
 
 # Spawn Scan searches known spawnpoints at the specific time they spawn.
 class SpawnScan(BaseScheduler):
-    def __init__(self,queues,status,args):
-        BaseScheduler.__init__(self,queues,status,args)
+    def __init__(self, queues, status, args):
+        BaseScheduler.__init__(self, queues, status, args)
         # On the first scan, we want to search the last 15 minutes worth of spawns to get existing
         # pokemon onto the map.
         self.firstscan = True
-
