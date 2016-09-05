@@ -230,7 +230,7 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
                 overseer = {
                     'worker_name': name,
                     'message': status['message'],
-                    'scheduler': status['scheduler'],
+                    'method': status['scheduler'],
                     'last_modified': datetime.utcnow()
                 }
             if status['type'] == 'Worker':
