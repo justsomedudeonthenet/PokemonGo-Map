@@ -338,9 +338,8 @@ class SpawnScan(BaseScheduler):
             log.warning('Cannot schedule work until scan location has been set')
             return
 
-        # Only generate the list of locations if we don't have it already calculated.
-        if not self.locations:
-            self.locations = self._generate_locations()
+        # SpawnScan needs to calculate the list every time, since the times will change.
+        self.locations = self._generate_locations()
 
         for location in self.locations:
             # FUTURE IMPROVEMENT - For now, queues is assumed to have a single queue.
