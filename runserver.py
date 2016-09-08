@@ -69,6 +69,7 @@ def install_thread_excepthook():
     """
     import sys
     run_old = Thread.run
+
     def run(*args, **kwargs):
         try:
             run_old(*args, **kwargs)
@@ -77,6 +78,7 @@ def install_thread_excepthook():
         except:
             sys.excepthook(*sys.exc_info())
     Thread.run = run
+
 
 # Exception handler will log unhandled exceptions
 def handle_exception(exc_type, exc_value, exc_traceback):
