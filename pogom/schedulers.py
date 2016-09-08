@@ -346,6 +346,9 @@ class SpawnScan(BaseScheduler):
             self.queues[0].put(location)
             log.debug("Added location {}".format(location))
 
+        # Clear the locations list so it gets regenerated next cycle
+        self.locations = None
+
 
 # The SchedulerFactory returns an instance of the correct type of scheduler
 class SchedulerFactory():
